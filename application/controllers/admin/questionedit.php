@@ -46,25 +46,18 @@ class questionedit extends Survey_Common_Action
         App()->getClientScript()->registerPackage('ace');
         $qrrow = $oQuestion->attributes;
         $baselang = $oSurvey->language;
-        // TODO: can we delete this?
-//        $aAttributesWithValues = Question::model()->getAdvancedSettingsWithValues($oQuestion->qid, $qrrow['type'], $iSurveyID, $baselang);
-//        $DisplayArray = array();
-//
-//        foreach ($aAttributesWithValues as $aAttribute) {
-//            if (($aAttribute['i18n'] == false && isset($aAttribute['value']) && $aAttribute['value'] != $aAttribute['default'])
-//                || ($aAttribute['i18n'] == true && isset($aAttribute['value'][$baselang]) && $aAttribute['value'][$baselang] != $aAttribute['default'])) {
-//                if ($aAttribute['inputtype'] == 'singleselect') {
-//                    if (isset($aAttribute['options'][$aAttribute['value']])) {
-//                        $aAttribute['value'] = $aAttribute['options'][$aAttribute['value']];
-//                    }
-//                }
-//                $DisplayArray[] = $aAttribute;
-//            }
-//        }
 
-        $condarray = ($oQuestion->qid != null) ? getQuestDepsForConditions($iSurveyID, "all", "all", $oQuestion->qid, "by-targqid", "outsidegroup") : [];
+        $condarray = ($oQuestion->qid != null)
+            ? getQuestDepsForConditions(
+                $iSurveyID,
+                "all",
+                "all",
+                $oQuestion->qid,
+                "by-targqid",
+                "outsidegroup"
+            )
+            : [];
 
-      //  $this->getController()->renderPartial('/admin/survey/Question/questionbar_view', $aData, true); // can we delete this?
         $aData['display']['menu_bars']['gid_action'] = 'viewquestion';
         $aData['questionbar']['buttons']['view'] = true;
 
