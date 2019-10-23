@@ -95,9 +95,9 @@ class questionedit extends Survey_Common_Action
         $aData['qshowstyle'] = '';
         $aData['qrrow'] = $qrrow;
         $aData['baselang'] = $baselang;
-//        $aData['advancedsettings'] = $DisplayArray;
-        $aData['sImageURL'] = Yii::app()->getConfig('adminimageurl');
-        $aData['iIconSize'] = Yii::app()->getConfig('adminthemeiconsize');
+
+        $aData['sImageURL'] = App()->getConfig('adminimageurl');
+        $aData['iIconSize'] = App()->getConfig('adminthemeiconsize');
         $aData['display']['menu_bars']['qid_action'] = 'editquestion';
         $aData['display']['menu_bars']['gid_action'] = 'viewquestion';
         $aData['action'] = 'editquestion';
