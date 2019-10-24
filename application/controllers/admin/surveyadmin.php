@@ -2463,66 +2463,85 @@ class SurveyAdmin extends Survey_Common_Action
       );
     }
 
-    public function getSurveyTopbar($sid, $saveButton=false) {
-      $oSurvey                       = Survey::model()->findByPk($sid);
-      $hasSurveyContentPermission    = Permission::model()->hasSurveyPermission($sid, 'surveycontent', 'update');
-      $hasSurveyActivationPermission = Permission::model()->hasSurveyPermission($sid, 'surveyactivation', 'update');
-      $hasDeletePermission           = Permission::model()->hasSurveyPermission($sid, 'survey', 'delete');
-      $hasSurveyTranslatePermission  = Permission::model()->hasSurveyPermission($sid, 'translations', 'read');
-      $hasSurveyReadPermission       = Permission::model()->hasSurveyPermission($sid, 'surveycontent', 'read');
-      $hasSurveyTokensPermission     = Permission::model()->hasSurveyPermission($sid, 'surveysettings', 'update') 
-                                       || Permission::model()->hasSurveyPermission($sid, 'tokens', 'create');
-      $hasResponsesCreatePermission  = Permission::model()->hasSurveyPermission($sid, 'responses', 'create');
-      $hasResponsesReadPermission    = Permission::model()->hasSurveyPermission($sid, 'responses', 'read');
+    /**
+     * Returns JSON Data for TopBar (Vue Component).
+     *
+     * @param $sid
+     * @param bool $saveButton
+     * @return string|string[]|null
+     * @throws CException
+     */
+    public function getSurveyTopbar($sid, $saveButton = false)
+    {
+        $oSurvey                       = Survey::model()->findByPk($sid);
+        $hasSurveyContentPermission    = Permission::model()->hasSurveyPermission($sid, 'surveycontent', 'update');
+        $hasSurveyActivationPermission = Permission::model()->hasSurveyPermission($sid, 'surveyactivation', 'update');
+        $hasDeletePermission           = Permission::model()->hasSurveyPermission($sid, 'survey', 'delete');
+        $hasSurveyTranslatePermission  = Permission::model()->hasSurveyPermission($sid, 'translations', 'read');
+        $hasSurveyReadPermission       = Permission::model()->hasSurveyPermission($sid, 'surveycontent', 'read');
+        $hasSurveyTokensPermission     = Permission::model()->hasSurveyPermission($sid, 'surveysettings', 'update')
+                                           || Permission::model()->hasSurveyPermission($sid, 'tokens', 'create');
+        $hasResponsesCreatePermission  = Permission::model()->hasSurveyPermission($sid, 'responses', 'create');
+        $hasResponsesReadPermission    = Permission::model()->hasSurveyPermission($sid, 'responses', 'read');
 
-      $isActive  = $oSurvey->active == 'Y';
-      $condition = array('sid' => $sid, 'parent_qid' => 0);
-      $sumcount  = Question::model()->countByAttributes($condition);
-      $countLanguage = count($oSurvey->allLanguages);
-      $hasAdditionalLanguages = (count($oSurvey->additionalLanguages) > 0);
-      $canactivate = $sumcount > 0 && $hasSurveyActivationPermission;
-      $expired     = $oSurvey->expires != '' && ($oSurvey->expires < dateShift(date("Y-m-d H:i:s"), "Y-m-d H:i", Yii::app()->getConfig('timeadjust')));
-      $notstarted  = ($oSurvey->startdate != '') && ($oSurvey->startdate > dateShift(date("Y-m-d H:i:s"), "Y-m-d H:i", Yii::app()->getConfig('timeadjust')));
+        $isActive  = $oSurvey->active == 'Y';
+        $condition = array('sid' => $sid, 'parent_qid' => 0);
+        $sumcount  = Question::model()->countByAttributes($condition);
+        $countLanguage = count($oSurvey->allLanguages);
+        $hasAdditionalLanguages = (count($oSurvey->additionalLanguages) > 0);
+        $canactivate = $sumcount > 0 && $hasSurveyActivationPermission;
+        $expired     = $oSurvey->expires != '' &&
+            ($oSurvey->expires < dateShift(
+                date("Y-m-d H:i:s"),
+                "Y-m-d H:i",
+                App()->getConfig('timeadjust')
+            ));
+        $notstarted  = ($oSurvey->startdate != '') &&
+            ($oSurvey->startdate > dateShift(
+                date("Y-m-d H:i:s"),
+                "Y-m-d H:i",
+                App()->getConfig('timeadjust')
+            ));
 
-      if (!$isActive) {
-        $context = gT("Preview survey");
-        $contextbutton = 'preview_survey';
-      } else {
-        $context =  gT("Execute survey");
-        $contextbutton = 'execute_survey';
-      }
+        if (!$isActive) {
+            $context = gT("Preview survey");
+            $contextbutton = 'preview_survey';
+        } else {
+            $context =  gT("Execute survey");
+            $contextbutton = 'execute_survey';
+        }
 
-      $language = $oSurvey->language;
-      $conditionsCount = Condition::model()->with(array('questions'=>array('condition'=>'sid ='.$sid)))->count();
-      $oneLanguage     = (count($oSurvey->allLanguages) == 1);
+        $language = $oSurvey->language;
+        $conditionsCount = Condition::model()->with(array('questions'=>array('condition'=>'sid ='.$sid)))->count();
+        $oneLanguage     = (count($oSurvey->allLanguages) == 1);
 
-      return Yii::app()->getController()->renderPartial(
-        '/admin/survey/topbar/survey_topbar',
-        array(
-          'sid' => $sid,
-          'canactivate' => $canactivate,
-          'expired' => $expired,
-          'notstarted' => $notstarted,
-          'context' => $context,
-          'contextbutton' => $contextbutton,
-          'language' => $language,
-          'sumcount' => $sumcount,
-          'hasSurveyContentPermission' => $hasSurveyContentPermission,
-          'countLanguage' => $countLanguage,
-          'hasDeletePermission' => $hasDeletePermission,
-          'hasSurveyTranslatePermission' => $hasSurveyTranslatePermission,
-          'hasAdditionalLanguages' => $hasAdditionalLanguages,
-          'conditionsCount' => $conditionsCount,
-          'hasSurveyReadPermission' => $hasSurveyReadPermission,
-          'oneLanguage' => $oneLanguage,
-          'hasSurveyTokensPermission'    => $hasSurveyTokensPermission,
-          'hasResponsesCreatePermission' => $hasResponsesCreatePermission,
-          'hasResponsesReadPermission'   => $hasResponsesReadPermission,
-          'hasSurveyActivationPermission'   => $hasSurveyActivationPermission,
-          'addSaveButton'  => $saveButton,
-        ),
-        false,
-        false
-      );
+        return App()->getController()->renderPartial(
+            '/admin/survey/topbar/survey_topbar',
+            array(
+              'sid' => $sid,
+              'canactivate' => $canactivate,
+              'expired' => $expired,
+              'notstarted' => $notstarted,
+              'context' => $context,
+              'contextbutton' => $contextbutton,
+              'language' => $language,
+              'sumcount' => $sumcount,
+              'hasSurveyContentPermission' => $hasSurveyContentPermission,
+              'countLanguage' => $countLanguage,
+              'hasDeletePermission' => $hasDeletePermission,
+              'hasSurveyTranslatePermission' => $hasSurveyTranslatePermission,
+              'hasAdditionalLanguages' => $hasAdditionalLanguages,
+              'conditionsCount' => $conditionsCount,
+              'hasSurveyReadPermission' => $hasSurveyReadPermission,
+              'oneLanguage' => $oneLanguage,
+              'hasSurveyTokensPermission'    => $hasSurveyTokensPermission,
+              'hasResponsesCreatePermission' => $hasResponsesCreatePermission,
+              'hasResponsesReadPermission'   => $hasResponsesReadPermission,
+              'hasSurveyActivationPermission'   => $hasSurveyActivationPermission,
+              'addSaveButton'  => $saveButton,
+            ),
+            false,
+            false
+        );
     }
 }
