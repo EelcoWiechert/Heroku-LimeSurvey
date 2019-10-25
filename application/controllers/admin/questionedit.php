@@ -3,6 +3,7 @@
 if (!defined('BASEPATH')) {
     exit('No direct script access allowed');
 }
+
 /*
 * LimeSurvey
 * Copyright (C) 2007-2011 The LimeSurvey Project Team / Carsten Schmitz
@@ -17,13 +18,13 @@ if (!defined('BASEPATH')) {
 */
 
 /**
-* question
-*
-* @package LimeSurvey
-* @author
-* @copyright 2011
-* @access public
-*/
+ * Class questionedit
+ * question
+ * @package LimeSurvey
+ * @author
+ * @copyright 2011
+ * @access public
+ */
 class questionedit extends Survey_Common_Action
 {
     /**
@@ -197,25 +198,23 @@ class questionedit extends Survey_Common_Action
     }
 
     /**
-     * @todo document me
-     * @param $sid
+     * Saves question data.
+     * @param string $sid Survey ID
      * @throws CException
      */
     public function saveQuestionData($sid)
     {
         $questionData = App()->request->getPost('questionData', []);
         $iSurveyId = (int) $sid;
-        $isNewQuestion = false;
 
         $oQuestion = Question::model()->findByPk($questionData['question']['qid']);
         if ($oQuestion != null) {
             $oQuestion = $this->_editQuestion($oQuestion, $questionData['question']);
         } else {
             $oQuestion = $this->_newQuestion($questionData['question']);
-            $isNewQuestion = true;
         }
         $setApplied = [];
-        $setApplied['generalSettings']  = $this->_unparseAndSetGeneralOptions(
+        $setApplied['generalSettings'] = $this->_unparseAndSetGeneralOptions(
             $oQuestion,
             $questionData['generalSettings']
         );
@@ -223,7 +222,7 @@ class questionedit extends Survey_Common_Action
             $oQuestion,
             $questionData['advancedSettings']
         );
-        $setApplied['questionI10N']     = $this->_applyI10N($oQuestion, $questionData['questionI10N']);
+        $setApplied['questionI10N'] = $this->_applyI10N($oQuestion, $questionData['questionI10N']);
 
         // save advanced attributes default values for given question type
         if (array_key_exists('save_as_default', $questionData['generalSettings']) &&
@@ -239,7 +238,7 @@ class questionedit extends Survey_Common_Action
         }
 
         if (isset($questionData['scaledSubquestions'])) {
-            $setApplied['scaledSubquestions']  = $this->_storeSubquestions(
+            $setApplied['scaledSubquestions'] = $this->_storeSubquestions(
                 $oQuestion,
                 $questionData['scaledSubquestions']
             );
@@ -312,7 +311,7 @@ class questionedit extends Survey_Common_Action
         $aAdvancedOptions = $this->getAdvancedOptions($oQuestion->qid, $type, true, $question_template);
 
         $aLanguages = [];
-        $aAllLanguages = getLanguageData(false, Yii::app()->session['adminlang']);
+        $aAllLanguages = getLanguageData(false, App()->session['adminlang']);
         $aSurveyLanguages = $oQuestion->survey->getAllLanguages();
 
         array_walk($aSurveyLanguages, function ($lngString) use (&$aLanguages, $aAllLanguages) {
@@ -457,6 +456,7 @@ class questionedit extends Survey_Common_Action
 
     /**
      * @todo missing return statement (php warning)
+     * @todo document me
      * @param null $iQuestionId
      * @param null $sQuestionType
      * @param bool $returnArray
@@ -708,7 +708,6 @@ class questionedit extends Survey_Common_Action
      */
     private function _editQuestion(&$oQuestion, $aQuestionData)
     {
-        $aOldQuestionData = $oQuestion->attributes;
         $oQuestion->setAttributes($aQuestionData, false);
         if ($oQuestion == null) {
             throw new CException("Object update failed, input array malformed or invalid");
@@ -731,7 +730,6 @@ class questionedit extends Survey_Common_Action
     {
         $storeValid = true;
         $aQuestionBaseAttributes = $oQuestion->attributes;
-        $aQuestionAttributes = $oQuestion->questionAttributes;
 
         foreach ($dataSet as $sAttributeKey => $aAttributeValueArray) {
             if ($sAttributeKey === 'debug' || !isset($aAttributeValueArray['formElementValue'])) {
@@ -763,7 +761,6 @@ class questionedit extends Survey_Common_Action
     private function _unparseAndSetAdvancedOptions(&$oQuestion, $dataSet)
     {
         $storeValid = true;
-        $aQuestionAttributes = $oQuestion->questionAttributes;
         $aQuestionBaseAttributes = $oQuestion->attributes;
 
         foreach ($dataSet as $sAttributeCategory => $aAttributeCategorySettings) {
