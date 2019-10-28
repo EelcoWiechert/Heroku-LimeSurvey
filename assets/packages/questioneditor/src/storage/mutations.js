@@ -179,5 +179,8 @@ export default {
     },
     setStoredEvent: (state, newEvent) => {
         state.storedEvent = newEvent;
+    },
+    setError: (state, newValue) => {
+        state.errors.push(newValue);
     }
 };

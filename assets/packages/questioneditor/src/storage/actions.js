@@ -207,7 +207,12 @@ export default {
                         context.commit('setInTransfer', false);
                         resolve(result);
                     },
-                    reject
+                )
+                .catch(
+                    (error) => {
+                        context.commit('setError', error.xhr.responseJSON);
+                        reject(error.xhr.responseJSON);
+                    }
                 )
         });
     },

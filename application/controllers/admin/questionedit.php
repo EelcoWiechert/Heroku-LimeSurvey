@@ -201,90 +201,99 @@ class questionedit extends Survey_Common_Action
      * Saves question data.
      * @param string $sid Survey ID
      * @throws CException
+     * @throws Exception
      */
     public function saveQuestionData($sid)
     {
         $questionData = App()->request->getPost('questionData', []);
         $iSurveyId = (int) $sid;
-
         $oQuestion = Question::model()->findByPk($questionData['question']['qid']);
+
         if ($oQuestion != null) {
             $oQuestion = $this->_editQuestion($oQuestion, $questionData['question']);
-        } else {
-            $oQuestion = $this->_newQuestion($questionData['question']);
-        }
-        $setApplied = [];
-        $setApplied['generalSettings'] = $this->_unparseAndSetGeneralOptions(
-            $oQuestion,
-            $questionData['generalSettings']
-        );
-        $setApplied['advancedSettings'] = $this->_unparseAndSetAdvancedOptions(
-            $oQuestion,
-            $questionData['advancedSettings']
-        );
-        $setApplied['questionI10N'] = $this->_applyI10N($oQuestion, $questionData['questionI10N']);
 
-        // save advanced attributes default values for given question type
-        if (array_key_exists('save_as_default', $questionData['generalSettings']) &&
-            $questionData['generalSettings']['save_as_default']['formElementValue'] == 'Y') {
+            $setApplied = [];
+            $setApplied['generalSettings'] = $this->_unparseAndSetGeneralOptions(
+                $oQuestion,
+                $questionData['generalSettings']
+            );
+            $setApplied['advancedSettings'] = $this->_unparseAndSetAdvancedOptions(
+                $oQuestion,
+                $questionData['advancedSettings']
+            );
+            $setApplied['questionI10N'] = $this->_applyI10N($oQuestion, $questionData['questionI10N']);
+
+            // save advanced attributes default values for given question type
+            if (array_key_exists('save_as_default', $questionData['generalSettings']) &&
+                $questionData['generalSettings']['save_as_default']['formElementValue'] == 'Y') {
                 SettingsUser::setUserSetting(
                     'question_default_values_' .
                     $questionData['question']['type'],
                     ls_json_encode($questionData['advancedSettings'])
                 );
-        } elseif (array_key_exists('clear_default', $questionData['generalSettings']) &&
-            $questionData['generalSettings']['clear_default']['formElementValue'] == 'Y') {
+            } elseif (array_key_exists('clear_default', $questionData['generalSettings']) &&
+                $questionData['generalSettings']['clear_default']['formElementValue'] == 'Y') {
                 SettingsUser::deleteUserSetting('question_default_values_' . $questionData['question']['type'], '');
-        }
+            }
 
-        if (isset($questionData['scaledSubquestions'])) {
-            $setApplied['scaledSubquestions'] = $this->_storeSubquestions(
-                $oQuestion,
-                $questionData['scaledSubquestions']
+            if (isset($questionData['scaledSubquestions'])) {
+                $setApplied['scaledSubquestions'] = $this->_storeSubquestions(
+                    $oQuestion,
+                    $questionData['scaledSubquestions']
+                );
+            }
+
+            if (isset($questionData['scaledAnswerOptions'])) {
+                $setApplied['scaledAnswerOptions'] = $this->_storeAnswerOptions(
+                    $oQuestion,
+                    $questionData['scaledAnswerOptions']
+                );
+            }
+            $oNewQuestion = Question::model()->findByPk($oQuestion->qid);
+            $aCompiledQuestionData = $this->_getCompiledQuestionData($oNewQuestion);
+            $aQuestionAttributeData = $this->getQuestionAttributeData($oQuestion->qid, $oQuestion->gid, true);
+            $aQuestionGeneralOptions = $this->getGeneralOptions(
+                $oQuestion->qid,
+                null,
+                $oQuestion->gid,
+                true,
+                $aQuestionAttributeData['question_template']
             );
+            $aAdvancedOptions = $this->getAdvancedOptions($oQuestion->qid, null, true);
+            $this->renderJSON([
+                'success' => array_reduce($setApplied, function ($coll, $it) {
+                    return $coll && $it;
+                }, true),
+                'message' => gT('Question successfully stored'),
+                'successDetail' => $setApplied,
+                'questionId' => $oQuestion->qid,
+                'redirect' => $this->getController()->createUrl(
+                    'admin/questioneditor/sa/view/',
+                    ['surveyid' => $iSurveyId, 'gid' => $oQuestion->gid, 'qid' => $oQuestion->qid]
+                ),
+                'newQuestionDetails' => [
+                    "question" => $aCompiledQuestionData['question'],
+                    "scaledSubquestions" => $aCompiledQuestionData['subquestions'],
+                    "scaledAnswerOptions" => $aCompiledQuestionData['answerOptions'],
+                    "questionI10N" => $aCompiledQuestionData['i10n'],
+                    "questionAttributes" => $aQuestionAttributeData,
+                    "generalSettings" => $aQuestionGeneralOptions,
+                    "advancedSettings" => $aAdvancedOptions
+                ],
+                'transfer' => $questionData,
+            ]);
+            App()->close();
+        } else {
+            $oQuestion = $this->_newQuestion($questionData['question']);
+            $errors = $oQuestion->getErrors();
+            $error  = "Object creation failed, couldn't save.\n ".$errors['title'][0];
+            $json = json_encode(['error'=> [
+                'message' => $error,
+                'code' => 500,
+            ]]);
+            header('500 Internal Server Error', true, 500);
+            echo $json;
         }
-
-        if (isset($questionData['scaledAnswerOptions'])) {
-            $setApplied['scaledAnswerOptions'] = $this->_storeAnswerOptions(
-                $oQuestion,
-                $questionData['scaledAnswerOptions']
-            );
-        }
-        $oNewQuestion = Question::model()->findByPk($oQuestion->qid);
-        $aCompiledQuestionData = $this->_getCompiledQuestionData($oNewQuestion);
-        $aQuestionAttributeData = $this->getQuestionAttributeData($oQuestion->qid, $oQuestion->gid, true);
-        $aQuestionGeneralOptions = $this->getGeneralOptions(
-            $oQuestion->qid,
-            null,
-            $oQuestion->gid,
-            true,
-            $aQuestionAttributeData['question_template']
-        );
-        $aAdvancedOptions = $this->getAdvancedOptions($oQuestion->qid, null, true);
-
-        $this->renderJSON([
-            'success' => array_reduce($setApplied, function ($coll, $it) {
-                return $coll && $it;
-            }, true),
-            'message' => gT('Question successfully stored'),
-            'successDetail' => $setApplied,
-            'questionId' => $oQuestion->qid,
-            'redirect' => $this->getController()->createUrl(
-                'admin/questioneditor/sa/view/',
-                ['surveyid' => $iSurveyId, 'gid' => $oQuestion->gid, 'qid' => $oQuestion->qid]
-            ),
-            'newQuestionDetails' => [
-                "question" => $aCompiledQuestionData['question'],
-                "scaledSubquestions" => $aCompiledQuestionData['subquestions'],
-                "scaledAnswerOptions" => $aCompiledQuestionData['answerOptions'],
-                "questionI10N" => $aCompiledQuestionData['i10n'],
-                "questionAttributes" => $aQuestionAttributeData,
-                "generalSettings" => $aQuestionGeneralOptions,
-                "advancedSettings" => $aAdvancedOptions
-            ],
-            'transfer' => $questionData,
-        ]);
-        App()->close();
     }
 
     /**
@@ -665,6 +674,7 @@ class questionedit extends Survey_Common_Action
                 unset($aQuestionData[$sLanguage]);
             }
         } else {
+            \Yii::import('application.helpers.common_helper', true);
             $aQuestionData['question_order'] = getMaxQuestionOrder($iQuestionGroupId);
         }
 
@@ -676,24 +686,25 @@ class questionedit extends Survey_Common_Action
 
         $saved = $oQuestion->save();
         if ($saved == false) {
-            throw new CException(
-                "Object creation failed, couldn't save.\n ERRORS:".print_r(
-                    $oQuestion->getErrors(),
-                    true
-                )
-            );
-        }
+            //throw new CException(
+               // "Object creation failed, couldn't save.\n ERRORS:".print_r(
+                 //   $oQuestion->getErrors(),
+                  //  true
+               // );
+            //);
+        } else {
+            $i10N = [];
+            foreach ($oSurvey->allLanguages as $sLanguage) {
+                $i10N[$sLanguage] = new QuestionL10n();
+                $i10N[$sLanguage]->setAttributes([
+                    'qid' => $oQuestion->qid,
+                    'language' => $sLanguage,
+                    'question' => '',
+                    'help' => '',
+                ], false);
+                $i10N[$sLanguage]->save();
+            }
 
-        $i10N = [];
-        foreach ($oSurvey->allLanguages as $sLanguage) {
-            $i10N[$sLanguage] = new QuestionL10n();
-            $i10N[$sLanguage]->setAttributes([
-                'qid' => $oQuestion->qid,
-                'language' => $sLanguage,
-                'question' => '',
-                'help' => '',
-            ], false);
-            $i10N[$sLanguage]->save();
         }
 
         return $oQuestion;
@@ -1011,17 +1022,18 @@ class questionedit extends Survey_Common_Action
     }
 
     /**
-     * @todo document me.
-     * @param $oQuestion
+     * @param $oQuestion Question
      * @return array
+     * @throws CException
+     * @todo document me.
      */
     private function _getCompiledQuestionData(&$oQuestion)
     {
+        \Yii::import('application.helpers.expressions.em_manager_helper', true);
         LimeExpressionManager::StartProcessingPage(false, true);
         $aQuestionDefinition = array_merge($oQuestion->attributes, ['typeInformation' => $oQuestion->questionType]);
         $oQuestionGroup = QuestionGroup::model()->findByPk($oQuestion->gid);
         $aQuestionGroupDefinition = array_merge($oQuestionGroup->attributes, $oQuestionGroup->questionGroupL10ns);
-
 
         $aScaledSubquestions = $oQuestion->getOrderedSubQuestions();
         foreach ($aScaledSubquestions as $scaleId => $aSubquestions) {
@@ -1036,6 +1048,7 @@ class questionedit extends Survey_Common_Action
                 return array_merge($oAnswerOption->attributes, $oAnswerOption->answerL10ns);
             }, $aAnswerOptions);
         }
+
         $aReplacementData = [];
         $questioni10N = [];
         foreach ($oQuestion->questionL10ns as $lng => $oQuestionI10N) {
@@ -1057,7 +1070,9 @@ class questionedit extends Survey_Common_Action
                 LimeExpressionManager::GetLastPrettyPrintExpression()
             );
         }
+
         LimeExpressionManager::FinishProcessingPage();
+
         return [
             'question' => $aQuestionDefinition,
             'questiongroup' => $aQuestionGroupDefinition,
