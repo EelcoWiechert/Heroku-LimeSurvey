@@ -199,63 +199,75 @@ class questionedit extends Survey_Common_Action
      */
     public function saveQuestionData($sid)
     {
-        $questionData = App()->request->getPost('questionData', []);
-        $iSurveyId = (int) $sid;
-        $isNewQuestion = false;
+        try {
+            $questionData = App()->request->getPost('questionData', []);
+            $iSurveyId = (int) $sid;
+            $isNewQuestion = false;
 
-        $oQuestion = Question::model()->findByPk($questionData['question']['qid']);
-        if ($oQuestion != null) {
-            $oQuestion = $this->updateQuestionData($oQuestion, $questionData['question']);
-        } else {
-            $oQuestion = $this->storeNewQuestionData($questionData['question']);
-            $isNewQuestion = true;
+            $oQuestion = Question::model()->findByPk($questionData['question']['qid']);
+            if ($oQuestion != null) {
+                $oQuestion = $this->updateQuestionData($oQuestion, $questionData['question']);
+            } else {
+                $oQuestion = $this->storeNewQuestionData($questionData['question']);
+                $isNewQuestion = true;
+            }
+            //$questionData['questionAttributes'];
+            $setApplied = [];
+            $setApplied['generalSettings']     = $this->_unparseAndSetGeneralOptions($oQuestion, $questionData['generalSettings']);
+            $setApplied['advancedSettings']    = $this->_unparseAndSetAdvancedOptions($oQuestion, $questionData['advancedSettings']);
+            $setApplied['questionI10N']        = $this->_applyI10N($oQuestion, $questionData['questionI10N']);
+
+            // save advanced attributes default values for given question type
+            if (array_key_exists('save_as_default', $questionData['generalSettings']) && $questionData['generalSettings']['save_as_default']['formElementValue'] == 'Y') {
+                SettingsUser::setUserSetting('question_default_values_' . $questionData['question']['type'], ls_json_encode($questionData['advancedSettings']));
+            } elseif (array_key_exists('clear_default', $questionData['generalSettings']) && $questionData['generalSettings']['clear_default']['formElementValue'] == 'Y') {
+                SettingsUser::deleteUserSetting('question_default_values_' . $questionData['question']['type'], '');
+            }
+
+            if (isset($questionData['scaledSubquestions'])) {
+                $setApplied['scaledSubquestions']  = $this->_storeSubquestions($oQuestion, $questionData['scaledSubquestions']);
+            }
+
+            if (isset($questionData['scaledAnswerOptions'])) {
+                $setApplied['scaledAnswerOptions'] = $this->_storeAnswerOptions($oQuestion, $questionData['scaledAnswerOptions']);
+            }
+            $oNewQuestion = Question::model()->findByPk($oQuestion->qid);
+            $aCompiledQuestionData = $this->_getCompiledQuestionData($oNewQuestion);
+            $aQuestionAttributeData = $this->getQuestionAttributeData($oQuestion->qid, true);
+            $aQuestionGeneralOptions = $this->getGeneralOptions($oQuestion->qid, null, $oQuestion->gid, true, $aQuestionAttributeData['question_template']);
+            $aAdvancedOptions = $this->getAdvancedOptions($oQuestion->qid, null, true);
+
+            $this->renderJSON([
+                'success' => array_reduce($setApplied, function ($coll, $it) {
+                    return $coll && $it;
+                }, true),
+                'message' => gT('Question successfully stored'),
+                'successDetail' => $setApplied,
+                'questionId' => $oQuestion->qid,
+                'redirect' => $this->getController()->createUrl('admin/questioneditor/sa/view/', ['surveyid' => $iSurveyId, 'gid' => $oQuestion->gid, 'qid' => $oQuestion->qid]),
+                'newQuestionDetails' => [
+                    "question" => $aCompiledQuestionData['question'],
+                    "scaledSubquestions" => $aCompiledQuestionData['subquestions'],
+                    "scaledAnswerOptions" => $aCompiledQuestionData['answerOptions'],
+                    "questionI10N" => $aCompiledQuestionData['i10n'],
+                    "questionAttributes" => $aQuestionAttributeData,
+                    "generalSettings" => $aQuestionGeneralOptions,
+                    "advancedSettings" => $aAdvancedOptions
+                ],
+                'transfer' => $questionData,
+            ]);
+            Yii::app()->close();
+        } catch (Exception $exception) {
+            header('500 Internal Server Error', true, 500);
+            $data = [
+                'error' => [
+                    'message' => $exception->getMessage(),
+                    'code' => $exception->getCode(),
+                ]
+            ];
+            $json = json_encode($data);
+            echo $json;
         }
-        //$questionData['questionAttributes'];
-        $setApplied = [];
-        $setApplied['generalSettings']     = $this->_unparseAndSetGeneralOptions($oQuestion, $questionData['generalSettings']);
-        $setApplied['advancedSettings']    = $this->_unparseAndSetAdvancedOptions($oQuestion, $questionData['advancedSettings']);
-        $setApplied['questionI10N']        = $this->_applyI10N($oQuestion, $questionData['questionI10N']);
-
-        // save advanced attributes default values for given question type
-        if (array_key_exists('save_as_default', $questionData['generalSettings']) && $questionData['generalSettings']['save_as_default']['formElementValue'] == 'Y') {
-            SettingsUser::setUserSetting('question_default_values_' . $questionData['question']['type'], ls_json_encode($questionData['advancedSettings']));
-        } elseif (array_key_exists('clear_default', $questionData['generalSettings']) && $questionData['generalSettings']['clear_default']['formElementValue'] == 'Y') {
-            SettingsUser::deleteUserSetting('question_default_values_' . $questionData['question']['type'], '');
-        }
-
-        if (isset($questionData['scaledSubquestions'])) {
-            $setApplied['scaledSubquestions']  = $this->_storeSubquestions($oQuestion, $questionData['scaledSubquestions']);
-        }
-
-        if (isset($questionData['scaledAnswerOptions'])) {
-            $setApplied['scaledAnswerOptions'] = $this->_storeAnswerOptions($oQuestion, $questionData['scaledAnswerOptions']);
-        }
-        $oNewQuestion = Question::model()->findByPk($oQuestion->qid);
-        $aCompiledQuestionData = $this->_getCompiledQuestionData($oNewQuestion);
-        $aQuestionAttributeData = $this->getQuestionAttributeData($oQuestion->qid, true);
-        $aQuestionGeneralOptions = $this->getGeneralOptions($oQuestion->qid, null, $oQuestion->gid, true, $aQuestionAttributeData['question_template']);
-        $aAdvancedOptions = $this->getAdvancedOptions($oQuestion->qid, null, true);
-
-        $this->renderJSON([
-            'success' => array_reduce($setApplied, function ($coll, $it) {
-                return $coll && $it;
-            }, true),
-            'message' => gT('Question successfully stored'),
-            'successDetail' => $setApplied,
-            'questionId' => $oQuestion->qid,
-            'redirect' => $this->getController()->createUrl('admin/questioneditor/sa/view/', ['surveyid' => $iSurveyId, 'gid' => $oQuestion->gid, 'qid' => $oQuestion->qid]),
-            'newQuestionDetails' => [
-                "question" => $aCompiledQuestionData['question'],
-                "scaledSubquestions" => $aCompiledQuestionData['subquestions'],
-                "scaledAnswerOptions" => $aCompiledQuestionData['answerOptions'],
-                "questionI10N" => $aCompiledQuestionData['i10n'],
-                "questionAttributes" => $aQuestionAttributeData,
-                "generalSettings" => $aQuestionGeneralOptions,
-                "advancedSettings" => $aAdvancedOptions
-            ],
-            'transfer' => $questionData,
-        ]);
-        Yii::app()->close();
     }
 
     /**
@@ -600,7 +612,7 @@ class questionedit extends Survey_Common_Action
 
         $saved = $oQuestion->save();
         if ($saved == false) {
-            throw new CException("Object creation failed, couldn't save.\n ERRORS:".print_r($oQuestion->getErrors(), true));
+            throw new CException("Object creation failed, couldn't save.\n ERRORS:".implode(", ", $oQuestion->getErrors()['title']));
         }
 
         $i10N = [];
@@ -635,7 +647,7 @@ class questionedit extends Survey_Common_Action
 
         $saved = $oQuestion->save();
         if ($saved == false) {
-            throw new CException("Object update failed, couldn't save. ERRORS:".print_r($oQuestion->getErrors(), true));
+            throw new CException("Object update failed, couldn't save. ERRORS:".implode(", ", $oQuestion->getErrors()['title']));
         }
         return $oQuestion;
     }
